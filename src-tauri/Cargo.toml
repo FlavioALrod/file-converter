@@ -1,0 +1,97 @@
+[package]
+name = "file-converter"
+version = "0.1.0"
+description = "Conversor de arquivos (imagens, documentos e midia) para desktop"
+edition = "2021"
+rust-version = "1.77"
+
+# Nome de crate explicito para a lib, no padrao gerado pelo proprio
+# `create-tauri-app`: o binario (main.rs) e a lib (lib.rs) sao crates
+# separados, e o binario so chama `file_converter_lib::run()`. Isso evita
+# conflito de nome de crate em alguns alvos mobile/Windows.
+[lib]
+name = "file_converter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Ver https://tauri.app/develop/ para a documentacao do build script.
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+
+# --- Motor de conversao de imagens (Fase 1) ---------------------------------
+# `image`: formatos raster nativos (PNG, JPEG, GIF, BMP, TIFF, WEBP, ICO).
+image = { version = "0.25", default-features = false, features = [
+  "png", "jpeg", "gif", "bmp", "ico", "tiff", "webp",
+] }
+# `usvg` + `resvg` + `tiny-skia`: renderizacao SVG -> raster.
+usvg = "0.45"
+resvg = "0.45"
+tiny-skia = "0.11"
+# Vetorizacao raster -> SVG usa o binario `vtracer` 0.6.x (MIT OR Apache-2.0,
+# versao estavel atual no crates.io -- confirmado e comparado com o Potrace,
+# que e GPL-2.0, na auditoria da Fase 4; ver o comentario em
+# conversion/image_engine.rs::vectorize_to_svg) como processo externo
+# (ver conversion/image_engine.rs para o motivo), por isso nao ha uma crate
+# `vtracer` listada aqui -- o que entra e o pre-requisito `cargo install
+# vtracer` documentado no README/DOCUMENTACAO_PROJETO.txt.
+
+# --- Motores de documento e midia (Fase 2) ---------------------------------
+# Nenhuma crate nova: document_engine.rs chama o binario `soffice` (pacote
+# `libreoffice` do sistema) e media_engine.rs chama `ffmpeg` (pacote
+# `ffmpeg-free`), ambos via `std::process::Command` -- o mesmo padrao ja
+# usado acima para o `vtracer`. Ver DOCUMENTACAO_PROJETO.txt (quando pronto)
+# para as instrucoes de instalacao desses dois programas no Fedora.
+
+# --- Gerenciador de arquivos e agendamento (Fase 5) -------------------------
+# `rusqlite`: acesso direto ao SQLite a partir do Rust (nao um plugin que
+# expoe SQL cru para o frontend) -- confirmado como o padrao usado por
+# projetos Tauri 2 atuais na pesquisa desta fase. `bundled` compila o SQLite
+# junto do binario, entao nao e preciso instalar `sqlite-devel` no Fedora.
+# Versao minima 0.40 (auditoria de erro de build): a 0.32 original compilava
+# sem problema, mas revisei o changelog ate a 0.40 e as unicas mudancas
+# que quebram compatibilidade sao na API de Virtual Table (VTab::connect,
+# best_index, etc.) -- nada que este projeto usa (so Connection, execute,
+# query_row/query_map, prepare, pragma_update). A 0.40 tambem inclui uma
+# correcao de seguranca (injecao de SQL quando o nome de um SAVEPOINT e
+# controlado por entrada externa) que nao nos afeta hoje, mas e motivo a
+# mais para preferir a versao mais nova quando ela e seguramente compativel.
+# Os unicos CVEs conhecidos do rusqlite (uso-apos-liberacao em callbacks)
+# afetam so as series 0.25.x/0.26.x antigas (2021), corrigidas ha muito
+# tempo -- bem abaixo de qualquer versao usada aqui.
+#
+# Nenhuma crate de data/hora (chrono, time) foi adicionada: o frontend
+# converte a data+hora escolhida pelo usuario (que ja respeita o fuso
+# horario local do navegador/WebView nativamente) em um timestamp Unix
+# simples antes de enviar ao backend, que so compara numeros inteiros --
+# ver manager/jobs.rs e src/lib/manager-api.ts. Isso evita uma dependencia
+# inteira para um problema que o JavaScript ja resolve de graca.
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+# `tokio`: usado diretamente pelo agendador (manager/scheduler.rs) para
+# `Notify` (acordar o loop sem polling) e `select!` (dormir ate o proximo
+# agendamento OU acordar cedo, o que vier primeiro). ESTE ERA O BUG QUE
+# IMPEDIA O BUILD: o Tauri ja usa Tokio por baixo dos panos, mas isso nao
+# torna `tokio::` chamavel direto no nosso codigo sem declarar a
+# dependencia explicitamente aqui -- o erro de compilacao (E0433, "crate
+# tokio nao encontrado") era exatamente essa falta. Confirmado via
+# documentacao oficial do Tokio: `Notify` exige o recurso `sync`, `select!`
+# exige `macros`; tambem usamos `tokio::time::sleep`, que exige `time`. Nao
+# habilitamos o recurso de runtime (`rt`/`rt-multi-thread`) aqui de
+# proposito -- o Tauri ja fornece e roda o runtime; o unificador de
+# features do Cargo garante que a mesma versao compilada do tokio (1.54.x,
+# a que o Tauri ja resolve) tenha as duas listas de recursos somadas.
+tokio = { version = "1", features = ["sync", "macros", "time"] }
+
+[profile.release]
+# Binario menor e mais rapido em troca de um release build mais lento --
+# aceitavel para um app desktop que nao e recompilado a cada minuto.
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"

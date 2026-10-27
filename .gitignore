@@ -1,0 +1,32 @@
+# Dependências do frontend
+node_modules/
+
+# Builds do frontend
+dist/
+
+# Builds do Rust e Tauri
+target/
+src-tauri/target/
+
+# Binários gerados
+src-tauri/binaries/
+
+# Arquivos temporários e logs
+*.log
+*.tmp
+*.temp
+*.bak
+*~
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Segredos e variáveis locais
+.env
+.env.*
+!.env.example
