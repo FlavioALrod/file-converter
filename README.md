@@ -42,3 +42,9 @@ npm run tauri dev
 O aplicativo será iniciado em modo de desenvolvimento. O LibreOffice, o FFmpeg e o VTracer são utilizados por funcionalidades específicas de conversão.
 
 Consulte o [ROADMAP.md](ROADMAP.md) para acompanhar as próximas etapas do projeto.
+
+Como funcionará o compartilhamento
+
+O usuário selecionará um arquivo, e o aplicativo iniciará um servidor HTTP local para disponibilizá-lo na rede. A interface exibirá um link e um QR Code para facilitar o acesso pelo outro dispositivo. Cada sessão utilizará um token aleatório para controlar o acesso à transferência.
+
+O objetivo é tornar o compartilhamento entre computadores e outros dispositivos mais simples, sem depender de serviços externos de armazenamento em nuvem.
